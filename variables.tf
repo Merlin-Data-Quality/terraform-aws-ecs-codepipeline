@@ -216,3 +216,15 @@ variable "codebuild_extra_policy_arns" {
   default     = []
   description = "List of ARNs of extra policies to attach to the CodeBuild role"
 }
+
+variable "pipeline_type" {
+  type        = string
+  default     = "V1"
+  description = "The type of pipeline (V1 or V2)"
+}
+
+variable "execution_mode" {
+  type        = string
+  default     = "SUPERSEDED"
+  description = "The execution mode of the pipeline (SUPERSEDED, QUEUED, or PARALLEL). QUEUED and PARALLEL require pipeline_type V2."
+}

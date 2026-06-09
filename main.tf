@@ -259,9 +259,11 @@ resource "aws_iam_role_policy_attachment" "codebuild_extras" {
 }
 
 resource "aws_codepipeline" "default" {
-  count    = module.this.enabled && var.github_oauth_token != "" ? 1 : 0
-  name     = module.codepipeline_label.id
-  role_arn = join("", aws_iam_role.default.*.arn)
+  count          = module.this.enabled && var.github_oauth_token != "" ? 1 : 0
+  name           = module.codepipeline_label.id
+  role_arn       = join("", aws_iam_role.default.*.arn)
+  pipeline_type  = var.pipeline_type
+  execution_mode = var.execution_mode
 
   artifact_store {
     location = join("", aws_s3_bucket.default.*.bucket)
@@ -342,9 +344,11 @@ resource "aws_codepipeline" "default" {
 
 # https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-CodestarConnectionSource.html#action-reference-CodestarConnectionSource-example
 resource "aws_codepipeline" "bitbucket" {
-  count    = local.codestar_enabled ? 1 : 0
-  name     = module.codepipeline_label.id
-  role_arn = join("", aws_iam_role.default.*.arn)
+  count          = local.codestar_enabled ? 1 : 0
+  name           = module.codepipeline_label.id
+  role_arn       = join("", aws_iam_role.default.*.arn)
+  pipeline_type  = var.pipeline_type
+  execution_mode = var.execution_mode
 
   artifact_store {
     location = join("", aws_s3_bucket.default.*.bucket)

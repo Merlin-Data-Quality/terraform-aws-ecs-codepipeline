@@ -104,6 +104,38 @@ module "ecs_release_pipeline" {
 
 (Thanks to [Stack Overflow](https://stackoverflow.com/questions/52516087/trigger-aws-codepipeline-by-github-release-webhook#comment91997146_52524711))
 
+### Trigger on Git Push with Branch Filters (V2 pipelines)
+
+For pipelines using `codestar_connection_arn` (Bitbucket/CodeStar source), you can trigger pipeline
+executions on pushes to any branch matching a glob pattern, instead of a single fixed branch. This uses
+the native CodePipeline `trigger` block, which requires `pipeline_type = "V2"`.
+
+```hcl
+module "ecs_push_pipeline" {
+  source = "cloudposse/ecs-codepipeline/aws"
+  # Cloud Posse recommends pinning every module to a specific version
+  # version = "x.x.x"
+  name                      = "app"
+  namespace                 = "eg"
+  stage                     = "staging"
+  codestar_connection_arn   = "arn:aws:codestar-connections:us-east-1:123456789012:connection/xxxxxxxx"
+  repo_owner                = "cloudposse"
+  repo_name                 = "example"
+  branch                    = "master"
+  service_name              = "example"
+  ecs_cluster_name          = "eg-staging-example-cluster"
+  privileged_mode           = "true"
+  pipeline_type             = "V2"
+  trigger_enabled           = true
+  trigger_branches_includes = ["release/*"]
+}
+```
+
+> [!NOTE]
+> When `trigger_enabled = true`, AWS CodePipeline uses the branch that triggered the push instead of the
+> fixed `BranchName` configured on the Source action. `trigger_enabled` is opt-in and defaults to `false`,
+> so existing pipelines that don't set it are unaffected.
+
 > [!IMPORTANT]
 > In Cloud Posse's examples, we avoid pinning modules to specific versions to prevent discrepancies between the documentation
 > and the latest released versions. However, for your own projects, we strongly advise pinning each module to the exact version
@@ -266,6 +298,8 @@ artifacts:
 | <a name="input_stage"></a> [stage](#input\_stage) | ID element. Usually used to indicate role, e.g. 'prod', 'staging', 'source', 'build', 'test', 'deploy', 'release' | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags (e.g. `{'BusinessUnit': 'XYZ'}`).<br/>Neither the tag keys nor the tag values will be modified by this module. | `map(string)` | `{}` | no |
 | <a name="input_tenant"></a> [tenant](#input\_tenant) | ID element \_(Rarely used, not included by default)\_. A customer identifier, indicating who this instance of a resource is for | `string` | `null` | no |
+| <a name="input_trigger_branches_includes"></a> [trigger\_branches\_includes](#input\_trigger\_branches\_includes) | Glob patterns for branches that trigger the pipeline via push, e.g. ["release/*"] | `list(string)` | `[]` | no |
+| <a name="input_trigger_enabled"></a> [trigger\_enabled](#input\_trigger\_enabled) | Enable Git push trigger with branch filters (V2 pipelines only, requires CodeStarSourceConnection) | `bool` | `false` | no |
 | <a name="input_webhook_authentication"></a> [webhook\_authentication](#input\_webhook\_authentication) | The type of authentication to use. One of IP, GITHUB\_HMAC, or UNAUTHENTICATED | `string` | `"GITHUB_HMAC"` | no |
 | <a name="input_webhook_enabled"></a> [webhook\_enabled](#input\_webhook\_enabled) | Set to false to prevent the module from creating any webhook resources | `bool` | `true` | no |
 | <a name="input_webhook_filter_json_path"></a> [webhook\_filter\_json\_path](#input\_webhook\_filter\_json\_path) | The JSON path to filter on | `string` | `"$.ref"` | no |

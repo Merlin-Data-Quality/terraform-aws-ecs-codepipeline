@@ -228,3 +228,15 @@ variable "execution_mode" {
   default     = "SUPERSEDED"
   description = "The execution mode of the pipeline (SUPERSEDED, QUEUED, or PARALLEL). QUEUED and PARALLEL require pipeline_type V2."
 }
+
+variable "trigger_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable Git push trigger with branch filters (V2 pipelines only, requires CodeStarSourceConnection)"
+}
+
+variable "trigger_branches_includes" {
+  type        = list(string)
+  default     = []
+  description = "Glob patterns for branches that trigger the pipeline via push, e.g. [\"release/*\"]"
+}

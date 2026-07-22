@@ -115,6 +115,38 @@ usage: |2-
 
   (Thanks to [Stack Overflow](https://stackoverflow.com/questions/52516087/trigger-aws-codepipeline-by-github-release-webhook#comment91997146_52524711))
 
+  ### Trigger on Git Push with Branch Filters (V2 pipelines)
+
+  For pipelines using `codestar_connection_arn` (Bitbucket/CodeStar source), you can trigger pipeline
+  executions on pushes to any branch matching a glob pattern, instead of a single fixed branch. This uses
+  the native CodePipeline `trigger` block, which requires `pipeline_type = "V2"`.
+
+  ```hcl
+  module "ecs_push_pipeline" {
+    source = "cloudposse/ecs-codepipeline/aws"
+    # Cloud Posse recommends pinning every module to a specific version
+    # version = "x.x.x"
+    name                      = "app"
+    namespace                 = "eg"
+    stage                     = "staging"
+    codestar_connection_arn   = "arn:aws:codestar-connections:us-east-1:123456789012:connection/xxxxxxxx"
+    repo_owner                = "cloudposse"
+    repo_name                 = "example"
+    branch                    = "master"
+    service_name              = "example"
+    ecs_cluster_name          = "eg-staging-example-cluster"
+    privileged_mode           = "true"
+    pipeline_type             = "V2"
+    trigger_enabled           = true
+    trigger_branches_includes = ["release/*"]
+  }
+  ```
+
+  > [!NOTE]
+  > When `trigger_enabled = true`, AWS CodePipeline uses the branch that triggered the push instead of the
+  > fixed `BranchName` configured on the Source action. `trigger_enabled` is opt-in and defaults to `false`,
+  > so existing pipelines that don't set it are unaffected.
+
 
 # Example usage
 examples: |-

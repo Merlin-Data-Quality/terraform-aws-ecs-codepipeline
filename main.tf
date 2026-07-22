@@ -420,6 +420,34 @@ resource "aws_codepipeline" "bitbucket" {
       }
     }
   }
+
+  # https://docs.aws.amazon.com/codepipeline/latest/userguide/trigger-configure-push.html
+  # When configured, CodePipeline uses the branch that triggered the push instead of the
+  # fixed `BranchName` set on the Source action's git_configuration above.
+  dynamic "trigger" {
+    for_each = var.trigger_enabled ? [1] : []
+
+    content {
+      provider_type = "CodeStarSourceConnection"
+
+      git_configuration {
+        source_action_name = "Source"
+
+        push {
+          branches {
+            includes = var.trigger_branches_includes
+          }
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !var.trigger_enabled || var.pipeline_type == "V2"
+      error_message = "trigger_enabled requires pipeline_type = \"V2\". The CodePipeline `trigger` block (git push filters) is only supported on V2 pipelines."
+    }
+  }
 }
 
 resource "random_string" "webhook_secret" {

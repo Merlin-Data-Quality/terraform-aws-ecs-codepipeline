@@ -147,6 +147,34 @@ usage: |2-
   > fixed `BranchName` configured on the Source action. `trigger_enabled` is opt-in and defaults to `false`,
   > so existing pipelines that don't set it are unaffected.
 
+  ### Static Code Analysis Stage
+
+  Adds an optional `Analysis` stage between `Source` and `Build` that runs an existing (usually shared)
+  CodeBuild project on the same commit. If the analysis fails, the pipeline stops before build/deploy.
+  Requires `codestar_connection_arn` and `codestar_output_artifact_format = "CODEBUILD_CLONE_REF"`
+  (the analysis gets a real git clone, so it can diff against previous commits).
+
+  ```hcl
+  module "ecs_push_pipeline" {
+    # ...same inputs as above...
+    codestar_output_artifact_format = "CODEBUILD_CLONE_REF"
+    analysis_enabled                = true
+    analysis_project_name           = "code-analysis-js"
+    analysis_environment_variables = [
+      { name = "ESLINT_PROFILE", value = "node", type = "PLAINTEXT" }
+    ]
+  }
+  ```
+
+  The action always receives `PIPELINE_NAME`, `PIPELINE_EXECUTION_ID`, `REPO_NAME`, `BRANCH_NAME` and
+  `COMMIT_ID` (the last two resolved from the push that triggered the execution). The pipeline role is
+  granted access to the analysis project. The analysis project's own role must be granted
+  `codestar-connections:UseConnection` on the connection (it's managed outside this module).
+
+  > [!NOTE]
+  > `analysis_enabled` defaults to `false`. The Source action `namespace` (`SourceVariables`) is only set
+  > when it is enabled, so existing pipelines are unaffected.
+
 
 # Example usage
 examples: |-

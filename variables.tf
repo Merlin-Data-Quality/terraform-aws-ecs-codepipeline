@@ -240,3 +240,27 @@ variable "trigger_branches_includes" {
   default     = []
   description = "Glob patterns for branches that trigger the pipeline via push, e.g. [\"release/*\"]"
 }
+
+variable "analysis_enabled" {
+  type        = bool
+  default     = false
+  description = "Add an `Analysis` stage (static code analysis) between `Source` and `Build`. Requires `codestar_connection_arn` and `codestar_output_artifact_format = \"CODEBUILD_CLONE_REF\"`"
+}
+
+variable "analysis_project_name" {
+  type        = string
+  default     = ""
+  description = "Name of an existing CodeBuild project (in the same account/region) that runs the analysis. It is typically shared across pipelines and managed outside this module"
+}
+
+variable "analysis_environment_variables" {
+  type = list(object(
+    {
+      name  = string
+      value = string
+      type  = string
+  }))
+
+  default     = []
+  description = "Extra environment variables passed to the analysis action. `PIPELINE_NAME`, `PIPELINE_EXECUTION_ID`, `REPO_NAME`, `BRANCH_NAME` and `COMMIT_ID` are always injected. Valid types are 'PLAINTEXT', 'PARAMETER_STORE', or 'SECRETS_MANAGER'"
+}

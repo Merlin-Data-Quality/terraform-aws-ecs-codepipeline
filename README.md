@@ -136,6 +136,34 @@ module "ecs_push_pipeline" {
 > fixed `BranchName` configured on the Source action. `trigger_enabled` is opt-in and defaults to `false`,
 > so existing pipelines that don't set it are unaffected.
 
+### Static Code Analysis Stage
+
+Adds an optional `Analysis` stage between `Source` and `Build` that runs an existing (usually shared)
+CodeBuild project on the same commit. If the analysis fails, the pipeline stops before build/deploy.
+Requires `codestar_connection_arn` and `codestar_output_artifact_format = "CODEBUILD_CLONE_REF"`
+(the analysis gets a real git clone, so it can diff against previous commits).
+
+```hcl
+module "ecs_push_pipeline" {
+  # ...same inputs as above...
+  codestar_output_artifact_format = "CODEBUILD_CLONE_REF"
+  analysis_enabled                = true
+  analysis_project_name           = "code-analysis-js"
+  analysis_environment_variables = [
+    { name = "ESLINT_PROFILE", value = "node", type = "PLAINTEXT" }
+  ]
+}
+```
+
+The action always receives `PIPELINE_NAME`, `PIPELINE_EXECUTION_ID`, `REPO_NAME`, `BRANCH_NAME` and
+`COMMIT_ID` (the last two resolved from the push that triggered the execution). The pipeline role is
+granted access to the analysis project. The analysis project's own role must be granted
+`codestar-connections:UseConnection` on the connection (it's managed outside this module).
+
+> [!NOTE]
+> `analysis_enabled` defaults to `false`. The Source action `namespace` (`SourceVariables`) is only set
+> when it is enabled, so existing pipelines are unaffected.
+
 > [!IMPORTANT]
 > In Cloud Posse's examples, we avoid pinning modules to specific versions to prevent discrepancies between the documentation
 > and the latest released versions. However, for your own projects, we strongly advise pinning each module to the exact version
@@ -250,6 +278,10 @@ artifacts:
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_additional_tag_map"></a> [additional\_tag\_map](#input\_additional\_tag\_map) | Additional key-value pairs to add to each map in `tags_as_list_of_maps`. Not added to `tags` or `id`.<br/>This is for some rare cases where resources want additional configuration of tags<br/>and therefore take a list of maps with tag key, value, and additional configuration. | `map(string)` | `{}` | no |
+| <a name="input_analysis_enabled"></a> [analysis\_enabled](#input\_analysis\_enabled) | Add an `Analysis` stage (static code analysis) between `Source` and `Build`. Requires `codestar_connection_arn` and `codestar_output_artifact_format = "CODEBUILD_CLONE_REF"` | `bool` | `false` | no |
+| <a name="input_analysis_environment_variables"></a> [analysis\_environment\_variables](#input\_analysis\_environment\_variables) | Extra environment variables passed to the analysis action. `PIPELINE_NAME`, `PIPELINE_EXECUTION_ID`, `REPO_NAME`, `BRANCH_NAME` and `COMMIT_ID` are always injected. Valid types are 'PLAINTEXT', 'PARAMETER\_STORE', or 'SECRETS\_MANAGER' | <pre>list(object(<br/>    {<br/>      name  = string<br/>      value = string<br/>      type  = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_analysis_project_name"></a> [analysis\_project\_name](#input\_analysis\_project\_name) | Name of an existing CodeBuild project (in the same account/region) that runs the analysis. It is typically shared across pipelines and managed outside this module | `string` | `""` | no |
+
 | <a name="input_attributes"></a> [attributes](#input\_attributes) | ID element. Additional attributes (e.g. `workers` or `cluster`) to add to `id`,<br/>in the order they appear in the list. New attributes are appended to the<br/>end of the list. The elements of the list are joined by the `delimiter`<br/>and treated as a single ID element. | `list(string)` | `[]` | no |
 | <a name="input_aws_account_id"></a> [aws\_account\_id](#input\_aws\_account\_id) | AWS Account ID. Used as CodeBuild ENV variable when building Docker images. [For more info](http://docs.aws.amazon.com/codebuild/latest/userguide/sample-docker.html) | `string` | `""` | no |
 | <a name="input_badge_enabled"></a> [badge\_enabled](#input\_badge\_enabled) | Generates a publicly-accessible URL for the projects build badge. Available as badge\_url attribute when enabled | `bool` | `false` | no |
@@ -310,6 +342,7 @@ artifacts:
 
 | Name | Description |
 |------|-------------|
+| <a name="output_analysis_stage_enabled"></a> [analysis\_stage\_enabled](#output\_analysis\_stage\_enabled) | Whether the Analysis stage was added to the pipeline |
 | <a name="output_badge_url"></a> [badge\_url](#output\_badge\_url) | The URL of the build badge when badge\_enabled is enabled |
 | <a name="output_codebuild_badge_url"></a> [codebuild\_badge\_url](#output\_codebuild\_badge\_url) | The URL of the build badge when badge\_enabled is enabled |
 | <a name="output_codebuild_cache_bucket_arn"></a> [codebuild\_cache\_bucket\_arn](#output\_codebuild\_cache\_bucket\_arn) | CodeBuild cache S3 bucket ARN |

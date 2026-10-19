@@ -67,3 +67,8 @@ output "codepipeline_resource" {
   description = "CodePipeline resource"
   value       = local.codepipeline_resource
 }
+
+output "analysis_stage_enabled" {
+  description = "Whether the Analysis stage was added to the pipeline"
+  value       = local.analysis_enabled
+}

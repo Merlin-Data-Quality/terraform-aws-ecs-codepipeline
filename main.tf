@@ -1,5 +1,34 @@
 locals {
   codestar_enabled = module.this.enabled && var.codestar_connection_arn != "" && var.codestar_connection_arn != null
+
+  # Analysis stage (opt-in). Only supported on the CodeStar connection pipeline.
+  analysis_enabled = local.codestar_enabled && var.analysis_enabled
+
+  analysis_project_arn = local.analysis_enabled ? format(
+    "arn:aws:codebuild:%s:%s:project/%s",
+    var.region != "" ? var.region : data.aws_region.default.name,
+    var.aws_account_id != "" ? var.aws_account_id : data.aws_caller_identity.default.account_id,
+    var.analysis_project_name
+  ) : ""
+
+  # Namespace of the Source action output variables (BranchName, CommitId, ...).
+  # Only set when the analysis stage is enabled, so existing pipelines are unaffected.
+  source_namespace = local.analysis_enabled ? "SourceVariables" : null
+
+  # Variables always injected into the analysis action. The branch/commit come from
+  # the push that triggered the execution (works with fixed branches and release/* triggers).
+  analysis_default_environment_variables = [
+    { name = "PIPELINE_NAME", value = module.codepipeline_label.id, type = "PLAINTEXT" },
+    { name = "PIPELINE_EXECUTION_ID", value = "#{codepipeline.PipelineExecutionId}", type = "PLAINTEXT" },
+    { name = "REPO_NAME", value = var.repo_name, type = "PLAINTEXT" },
+    { name = "BRANCH_NAME", value = "#{SourceVariables.BranchName}", type = "PLAINTEXT" },
+    { name = "COMMIT_ID", value = "#{SourceVariables.CommitId}", type = "PLAINTEXT" },
+  ]
+
+  analysis_environment_variables = concat(
+    local.analysis_default_environment_variables,
+    var.analysis_environment_variables
+  )
 }
 
 module "codepipeline_label" {
@@ -154,7 +183,8 @@ data "aws_iam_policy_document" "codebuild" {
       "codebuild:*"
     ]
 
-    resources = [module.codebuild.project_id]
+    # The analysis project (if any) is invoked by the same pipeline role.
+    resources = compact([module.codebuild.project_id, local.analysis_project_arn])
     effect    = "Allow"
   }
 }
@@ -374,12 +404,37 @@ resource "aws_codepipeline" "bitbucket" {
       provider         = "CodeStarSourceConnection"
       version          = "1"
       output_artifacts = ["code"]
+      namespace        = local.source_namespace
 
       configuration = {
         ConnectionArn        = var.codestar_connection_arn
         FullRepositoryId     = format("%s/%s", var.repo_owner, var.repo_name)
         BranchName           = var.branch
         OutputArtifactFormat = var.codestar_output_artifact_format
+      }
+    }
+  }
+
+  # Optional static code analysis. Runs on the same commit as the Build stage;
+  # if it fails, the pipeline stops before building/deploying.
+  dynamic "stage" {
+    for_each = local.analysis_enabled ? [1] : []
+
+    content {
+      name = "Analysis"
+
+      action {
+        name            = "Analysis"
+        category        = "Test"
+        owner           = "AWS"
+        provider        = "CodeBuild"
+        version         = "1"
+        input_artifacts = ["code"]
+
+        configuration = {
+          ProjectName          = var.analysis_project_name
+          EnvironmentVariables = jsonencode(local.analysis_environment_variables)
+        }
       }
     }
   }
@@ -446,6 +501,16 @@ resource "aws_codepipeline" "bitbucket" {
     precondition {
       condition     = !var.trigger_enabled || var.pipeline_type == "V2"
       error_message = "trigger_enabled requires pipeline_type = \"V2\". The CodePipeline `trigger` block (git push filters) is only supported on V2 pipelines."
+    }
+
+    precondition {
+      condition     = !var.analysis_enabled || var.analysis_project_name != ""
+      error_message = "analysis_enabled requires analysis_project_name (name of an existing CodeBuild project)."
+    }
+
+    precondition {
+      condition     = !var.analysis_enabled || var.codestar_output_artifact_format == "CODEBUILD_CLONE_REF"
+      error_message = "analysis_enabled requires codestar_output_artifact_format = \"CODEBUILD_CLONE_REF\" (the analysis needs the git history to compute the diff)."
     }
   }
 }
